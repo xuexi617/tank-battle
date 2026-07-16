@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Battle City - HTML5 Game</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 20px;
+        background: #000;
+        color: #fff;
+        font-family: "Courier New", monospace;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+      }
+
+      .game-container {
+        text-align: center;
+      }
+
+      canvas {
+        border: 2px solid #fff;
+        background: #000;
+      }
+
+      .ui {
+        margin-top: 10px;
+        display: flex;
+        justify-content: space-between;
+        width: 520px;
+      }
+
+      .score {
+        font-size: 16px;
+      }
+
+      .controls {
+        font-size: 12px;
+        margin-top: 10px;
+      }
+
+      .menu {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: rgba(0, 0, 0, 0.9);
+        padding: 20px;
+        border: 2px solid #fff;
+        display: none;
+      }
+
+      button {
+        background: #000;
+        color: #fff;
+        border: 2px solid #fff;
+        padding: 10px 20px;
+        margin: 5px;
+        cursor: pointer;
+        font-family: inherit;
+      }
+
+      button:hover {
+        background: #fff;
+        color: #000;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="game-container">
+      <canvas id="gameCanvas" width="520" height="520"></canvas>
+      <div class="ui">
+        <div class="score">
+          <div>P1 Score: <span id="p1Score">0</span></div>
+          <div>P2 Score: <span id="p2Score">0</span></div>
+        </div>
+        <div class="info">
+          <div>Stage: <span id="stage">1</span></div>
+          <div>Enemies: <span id="enemies">20</span></div>
+        </div>
+      </div>
+      <div class="controls">
+        <div>Player 1: WASD to move, SPACE to shoot</div>
+        <div>Player 2: Arrow keys to move, ENTER to shoot</div>
+        <div>Press ESC for menu</div>
+      </div>
+
+      <div id="menu" class="menu">
+        <h2>Battle City</h2>
+        <button onclick="startGame(1)">1 Player</button>
+        <button onclick="startGame(2)">2 Players</button>
+        <button onclick="resumeGame()" id="resumeBtn" style="display: none">
+          Resume
+        </button>
+      </div>
+    </div>
+
+    <script src="js/game.js"></script>
+    <script src="js/tank.js"></script>
+    <script src="js/bullet.js"></script>
+    <script src="js/map.js"></script>
+    <script src="js/powerup.js"></script>
+    <script src="js/audio.js"></script>
+  </body>
+</html>

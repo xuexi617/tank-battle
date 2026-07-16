@@ -1074,9 +1074,16 @@ function updateTank(tank){
         const nx=tank.x+d2.x*tank.speed, ny=tank.y+d2.y*tank.speed;
         if(tryMoveTank(tank,nx,ny)){ tank.x=nx; tank.y=ny; moving=true }
       }
-      // 主动攻击：与目标有视线时显著提高开火意愿
+      // 主动攻击：与目标有视线时显著提高开火意愿，并「瞄准」玩家再开火
+      // （融合 twtrubiks 进阶 AI：视线检测 + 预测/转向射击；仅作用于这一发，下一帧导航重新决策 → 零回归）
       let fc = tank.fireChance;
-      if(player && player.alive && lineOfSight(tank, player)) fc=Math.max(fc,0.10);
+      const los = player && player.alive && lineOfSight(tank, player);
+      if(los){
+        fc = Math.max(fc, 0.10);
+        // 与玩家同行/同列且通视 → 炮口转向玩家那一测再开火（子弹快，对准即近似预判命中）
+        const dx = player.x - tank.x, dy = player.y - tank.y;
+        tank.dir = (Math.abs(dx) <= Math.abs(dy)) ? (dy<0?0:2) : (dx<0?3:1);
+      }
       if(Math.random()<fc && state===STATE.PLAYING) fireBullet(tank);
     }
   }
