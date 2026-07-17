@@ -368,6 +368,42 @@ function stage6(){
     "0000000000000"
   ]);
 }
+function stage7(){
+  // 要塞：密集钢墙堡垒 + 狭窄通道
+  return stageFrom([
+    "0000010000000",
+    "1111010101111",
+    "0000000000000",
+    "0120040021001",
+    "0102020200010",
+    "0102020200010",
+    "0120040021001",
+    "0000000000000",
+    "0102220220010",
+    "0102220220010",
+    "0120040021001",
+    "0000000000000",
+    "0000010000000"
+  ]);
+}
+function stage8(){
+  // 终极之战：全要素混合对称迷宫
+  return stageFrom([
+    "0000000000000",
+    "1214200420121",
+    "1020300300201",
+    "1200400040021",
+    "0040202020400",
+    "1401010101041",
+    "0100300003010",
+    "1401010101041",
+    "0040202020400",
+    "1200400040021",
+    "1020300300201",
+    "1214200420121",
+    "0000000000000"
+  ]);
+}
 const STAGES=[stage1(),stage2(),stage3(),stage4(),stage5(),stage6(),stage7(),stage8()];
 
 // 每关敌人刷新模式：敌种配比 + 刷怪节奏(越小越快) + 是否冰面
@@ -1911,11 +1947,12 @@ function fit(){
   const g=document.getElementById('game');
   const st=document.getElementById('stage');
   const size=Math.max(320, Math.min(window.innerWidth-48, window.innerHeight-260, 1000));
+  const dpr=Math.min(window.devicePixelRatio||1, 2);   // 视网膜/高分屏按 DPR 提升后备分辨率，避免模糊
   if(g){
-    g.width=size; g.height=size;                 // backing store at full res -> crisp
-    g.style.width=size+'px'; g.style.height=size+'px';
-    ctx.imageSmoothingEnabled=false;             // pixelated retro look
-    ctx.setTransform(size/FIELD,0,0,size/FIELD,0,0); // map logical 416 coords -> size px
+    g.width=Math.round(size*dpr); g.height=Math.round(size*dpr);  // 后备分辨率 = 逻辑尺寸 × DPR
+    g.style.width=size+'px'; g.style.height=size+'px';            // CSS 尺寸保持逻辑尺寸，布局不变
+    ctx.imageSmoothingEnabled=false;                             // 像素风复古观感
+    ctx.setTransform(g.width/FIELD,0,0,g.height/FIELD,0,0);      // 逻辑 416 坐标 → 后备分辨率（清晰缩放）
   }
   if(st){ st.style.width=size+'px'; }
 }
@@ -1945,19 +1982,24 @@ function drawFloats(){
   ctx.globalAlpha=1; ctx.restore();
 }
 let _skillLegendInit=false;
+let _lastBuffsHTML='';        // 道具增益条缓存去重
+let _lastEnemyPct=-1;         // 敌军进度条百分比缓存去重
+let _lastSD={c:'',s:'',l:'',e:'',h:''};  // 分数/关卡/生命/敌军/最高分 文本缓存去重
 function updateHTMLHUD(){
   if(!sdC) return;
   // 延迟填充技能图例（仅首次执行）
   const sl=document.getElementById('skillLegend');
   if(sl && !_skillLegendInit){ let h=''; for(const e of SKILL_LEGEND) h+='<span>'+puIconHTML(e[0])+e[1]+'</span>'; sl.innerHTML=h; _skillLegendInit=true; }
-  sdC.textContent=String(score).padStart(6,'0');
-  sdS.textContent=String(stageIdx+1);
-  sdL.textContent=String(playerLives);
+  // 文本字段：仅值变化时才写 DOM，避免每帧 textContent 抖动（修复 HUD 闪烁/重排）
+  const sc=String(score).padStart(6,'0');        if(sc!==_lastSD.c){ sdC.textContent=sc; _lastSD.c=sc; }
+  const ss=String(stageIdx+1);                    if(ss!==_lastSD.s){ sdS.textContent=ss; _lastSD.s=ss; }
+  const slv=String(playerLives);                  if(slv!==_lastSD.l){ sdL.textContent=slv; _lastSD.l=slv; }
   const rem=enemyQueue+enemies.filter(e=>e.alive).length;
-  sdE.textContent=String(rem);
-  sdH.textContent=String(highScore);
-  const pct=stageEnemyCount>0?Math.max(0,Math.min(100,rem/stageEnemyCount*100)):0;
-  if(enemyFill) enemyFill.style.width=pct+'%';
+  const se=String(rem);                           if(se!==_lastSD.e){ sdE.textContent=se; _lastSD.e=se; }
+  const sh=String(highScore);                     if(sh!==_lastSD.h){ sdH.textContent=sh; _lastSD.h=sh; }
+  // 敌军进度条：仅百分比变化时才改 style.width，避免每帧触发样式重算
+  const pct=stageEnemyCount>0?Math.max(0,Math.min(100,Math.round(rem/stageEnemyCount*100))):0;
+  if(enemyFill && pct!==_lastEnemyPct){ enemyFill.style.width=pct+'%'; _lastEnemyPct=pct; }
   if(enemyIconsEl){ const n=Math.min(rem,24); if(n!==_lastEico){ _lastEico=n; let h=''; for(let i=0;i<n;i++) h+='<span class="eico"></span>'; enemyIconsEl.innerHTML=h; } }
   if(buffsEl){
     const ico = k => '<svg viewBox="0 0 24 24" class="ic">'+PU_SVG[k]+'</svg>';
@@ -1973,7 +2015,9 @@ function updateHTMLHUD(){
     if(upgArmor>0) chips.push('<span class="buff" style="--c:#7fd4ff">装甲+'+upgArmor+'</span>');
     if(upgSpeed>0) chips.push('<span class="buff" style="--c:#9fffa0">机动+'+upgSpeed+'</span>');
     if(player&&player.alive&&player.maxHp>1) chips.push('<span class="buff" style="--c:#ff8a8a">HP '+player.hp+'/'+player.maxHp+'</span>');
-    buffsEl.innerHTML=chips.join('');
+    // 仅当增益条 HTML 真正变化时才写 DOM（原实现每帧 rebuild → 60fps 解析 + 闪烁）
+    const html=chips.join('');
+    if(html!==_lastBuffsHTML){ buffsEl.innerHTML=html; _lastBuffsHTML=html; }
   }
 }
 // 关卡切换界面：入场动画横幅
@@ -2017,8 +2061,7 @@ function render(){
   _frameTick++;
   if(state===STATE.MENU){
     ctx.fillStyle='#000'; ctx.fillRect(0,0,FIELD,FIELD);
-    // animated demo background
-    const t=Date.now()/1000;
+    // 静态演示背景网格（不在渲染热路径调用 Date.now，避免每帧系统调用开销）
     ctx.strokeStyle='rgba(60,40,10,.5)'; ctx.lineWidth=1;
     for(let i=0;i<=GRID;i++){
       ctx.beginPath(); ctx.moveTo(i*TILE,0); ctx.lineTo(i*TILE,FIELD); ctx.stroke();
