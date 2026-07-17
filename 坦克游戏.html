@@ -418,14 +418,14 @@ const STAGE_ENEMY=[
   {types:[0,1,2,3,3,3],  spawnMul:0.5}    // 8 终极之战：全精英混合
 ];
 const STAGE_PU=[
-  [0,1,6,3],
+  [0,1,6,3,8],
   [0,4,5,3],
-  [6,7,1,3],
+  [6,7,1,3,8],
   [2,5,0,3],
-  [6,7,1,0],
-  [2,4,3,0],
-  [5,6,7,2],
-  [0,1,2,3,4,5,6,7]
+  [6,7,1,0,8],
+  [2,4,3,0,8],
+  [5,6,7,2,8],
+  [0,1,2,3,4,5,6,7,8]
 ];
 
 // 难度设置：影响整体速度/刷怪节奏/火力/敌人数量/生命
@@ -702,6 +702,7 @@ let freezeTimer=0;     // powerup: freeze enemies
 let shovelTimer=0;     // powerup: base walls are steel
 let rapidTimer=0;      // powerup: rapid fire
 let spreadTimer=0;     // powerup: spread (triple) shot
+let speedTimer=0;      // powerup: speed boost (movement) — NEW in v15
 let stageClearTimer=0;
 let respawnTimer=0;
 let gameOverTimer=0;
@@ -885,8 +886,8 @@ function addExplosion(x,y,big){
 }
 
 // ---------- Powerups ----------
-const PU = {STAR:0,HELMET:1,GRENADE:2,TANK:3,SHOVEL:4,TIMER:5,RAPID:6,SPREAD:7};
-const PU_NAMES=['STAR','HELMET','GRENADE','TANK','SHOVEL','TIMER','RAPID','SPREAD'];
+const PU = {STAR:0,HELMET:1,GRENADE:2,TANK:3,SHOVEL:4,TIMER:5,RAPID:6,SPREAD:7,SPEED:8};
+const PU_NAMES=['STAR','HELMET','GRENADE','TANK','SHOVEL','TIMER','RAPID','SPREAD','SPEED'];
 function randomFreeTile(){
   // pick a RANDOM free, reachable tile on the map for skill drops
   for(let i=0;i<90;i++){
@@ -902,7 +903,7 @@ function randomFreeTile(){
 }
 function maybeDropPowerup(x,y){
   // a carrier enemy ALWAYS drops a skill at a RANDOM free tile on the map
-  const kind=choice([PU.STAR,PU.HELMET,PU.GRENADE,PU.TANK,PU.SHOVEL,PU.TIMER,PU.RAPID,PU.SPREAD]);
+  const kind=choice([PU.STAR,PU.HELMET,PU.GRENADE,PU.TANK,PU.SHOVEL,PU.TIMER,PU.RAPID,PU.SPREAD,PU.SPEED]);
   const pos=randomFreeTile() || {x:x+TILE/2-12, y:y+TILE/2-12};
   powerups.push({x:pos.x,y:pos.y,kind,t:0,life:720});
   floats.push({x:pos.x+12,y:pos.y-4,txt:'技能!',lt:55,mh:55,color:'#ffd000'});
@@ -928,6 +929,8 @@ function applyPowerup(kind){
     rapidTimer=600;
   } else if(kind===PU.SPREAD){
     spreadTimer=600;
+  } else if(kind===PU.SPEED){
+    speedTimer=600;   // 加速：玩家移速短暂提升
   }
 }
 
@@ -980,7 +983,7 @@ function loadStage(idx){
   enemySpawnTimer=30;
   killsThisStage=0;
   combo=0; comboTimer=0;
-  freezeTimer=0; shovelTimer=0; rapidTimer=0; spreadTimer=0;
+  freezeTimer=0; shovelTimer=0; rapidTimer=0; spreadTimer=0; speedTimer=0;
   livesLostThisStage=0;
   fieldPowerupTimer = 480 + rnd(240);   // 8~12s 后首次地图道具
   playerLevel = Math.min(playerLevel,3);
@@ -1147,7 +1150,8 @@ function updateTank(tank){
       let sx=tank.x, sy=tank.y;
       if(mvDir===0||mvDir===2){ const ax=Math.round(tank.x/TILE)*TILE; if(tryMoveTank(tank,ax,tank.y)) sx=ax; }
       else { const ay=Math.round(tank.y/TILE)*TILE; if(tryMoveTank(tank,tank.x,ay)) sy=ay; }
-      const nx=sx+d.x*tank.speed, ny=sy+d.y*tank.speed;
+      const sp = (tank.side==='player' && speedTimer>0) ? tank.speed*1.6 : tank.speed;  // v15 加速道具
+      const nx=sx+d.x*sp, ny=sy+d.y*sp;
       if(tryMoveTank(tank,nx,ny)){ tank.x=nx; tank.y=ny; tank.dir=mvDir; tank.slideDir=mvDir; }
       else {
         // 撞墙：贴齐对齐；冰面则停止滑行
@@ -1206,6 +1210,7 @@ function updateBullets(){
       }
       if(hit){
         b.dead=true; sfx.brick(); addSpark(b.x,b.y);
+        addDebris(b.x+BSIZE/2, b.y+BSIZE/2, THEME.brickHi);   // v15: 砖块碎裂粒子
         // if all sub-cells of a tile gone, mark tile empty so tanks can pass
         recalcTile(tx,ty);
         continue;
@@ -1253,6 +1258,13 @@ function recalcTile(tx,ty){
   else if(any && map[ty][tx]===T.EMPTY) map[ty][tx]=T.BRICK;
 }
 function addSpark(x,y){ explosions.push({x:x+BSIZE/2,y:y+BSIZE/2,r:0,t:0,max:8,big:false,spark:true}) }
+// v15: 砖块碎裂粒子（复用 explosions 数组，用 debris 标记区分，避免新增数组与渲染分支）
+function addDebris(x,y,color){
+  for(let i=0;i<5;i++){
+    const a=Math.random()*6.283, sp=1+Math.random()*2.2;
+    explosions.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,t:0,max:16+Math.floor(Math.random()*8),big:false,debris:true,col:color});
+  }
+}
 
 function hitPlayer(){
   // 装甲系统：有耐久时抵挡一次伤害并短暂无敌
@@ -1310,7 +1322,10 @@ function updateHighScore(){ if(score>highScore){highScore=score; localStorage.se
 
 // ---------- Explosions update ----------
 function updateExplosions(){
-  for(const e of explosions){ e.t++ }
+  for(const e of explosions){
+    e.t++;
+    if(e.debris){ e.x+=e.vx; e.y+=e.vy; e.vx*=0.9; e.vy*=0.9; }  // v15: 粒子位移+阻尼
+  }
   explosions=explosions.filter(e=>e.t<e.max);
 }
 
@@ -1328,6 +1343,7 @@ function updatePowerups(){
   if(freezeTimer>0) freezeTimer--;
   if(rapidTimer>0) rapidTimer--;
   if(spreadTimer>0) spreadTimer--;
+  if(speedTimer>0) speedTimer--;   // v15
 }
 
 // ---------- Spawn logic ----------
@@ -1617,6 +1633,12 @@ function drawIce(px,py){
   ctx.fillRect(px+6,py+6,8,2); ctx.fillRect(px+10,py+4,2,6);
 }
 function drawExplosion(e){
+  if(e.debris){   // v15: 砖块碎裂粒子（小方块淡出）
+    const a=Math.max(0,1-e.t/e.max);
+    ctx.globalAlpha=a; ctx.fillStyle=e.col;
+    const s=3; ctx.fillRect(e.x-s/2,e.y-s/2,s,s);
+    ctx.globalAlpha=1; return;
+  }
   const p = e.t/e.max;
   if(e.spark){
     ctx.fillStyle = p<0.5?'#fff':'#ffaa00';
@@ -1715,6 +1737,11 @@ function drawPowerupIcon(ctx, kind, cx, cy, s){
       drawArrowHead(ctx, cx+s*0.85, cy+s*0.85, cx-s*0.6, cy-s*0.6, s*0.42);
       drawArrowHead(ctx, cx-s*0.85, cy+s*0.85, cx+s*0.6, cy-s*0.6, s*0.42);
       break;
+    case 8: // SPEED 加速 (双箭头) — v15
+      ctx.fillStyle='#9bff5a';
+      drawArrowHead(ctx, cx-s*0.6, cy, cx-s*0.1, cy, s*0.55);
+      drawArrowHead(ctx, cx+s*0.05, cy, cx+s*0.6, cy, s*0.55);
+      break;
   }
   ctx.restore();
 }
@@ -1726,8 +1753,8 @@ function drawPowerup(p){
   ctx.strokeRect(p.x-2,p.y-2,28,28);
   drawPowerupIcon(ctx, p.kind, p.x+12, p.y+13, 9);
 }
-const PU_COLORS=['#ffd000','#5ad0ff','#ff3b30','#4caf50','#c8a050','#e8e8e8','#ff9f43','#b06bff'];
-const PU_SHORT=['S','H','G','1P','SH','T','R','W'];
+const PU_COLORS=['#ffd000','#5ad0ff','#ff3b30','#4caf50','#c8a050','#e8e8e8','#ff9f43','#b06bff','#9bff5a'];
+const PU_SHORT=['S','H','G','1P','SH','T','R','W','SP'];
 let screenFlash=0;  // 全屏炸弹闪光
 // 内联 SVG 图标（与画布图标一致），用于增益条与菜单图例
 const PU_SVG=[
@@ -1738,10 +1765,11 @@ const PU_SVG=[
  '<rect x="5" y="5" width="14" height="14" fill="#c8a050"/><circle cx="8" cy="8" r="1.6" fill="#7a5b1e"/><circle cx="16" cy="8" r="1.6" fill="#7a5b1e"/><circle cx="8" cy="16" r="1.6" fill="#7a5b1e"/><circle cx="16" cy="16" r="1.6" fill="#7a5b1e"/>',
  '<g stroke="#9fe8ff" stroke-width="1.6" stroke-linecap="round"><line x1="12" y1="4" x2="12" y2="20"/><line x1="4.6" y1="8" x2="19.4" y2="16"/><line x1="4.6" y1="16" x2="19.4" y2="8"/></g>',
  '<polygon points="13,3 7,13 12,13 9,21 17,11 12,11" fill="#ff9f43"/>',
- '<polygon points="12,3 9,10 15,10" fill="#b06bff"/><polygon points="6,5 10,12 2,12" fill="#b06bff"/><polygon points="18,5 22,12 14,12" fill="#b06bff"/>'
+ '<polygon points="12,3 9,10 15,10" fill="#b06bff"/><polygon points="6,5 10,12 2,12" fill="#b06bff"/><polygon points="18,5 22,12 14,12" fill="#b06bff"/>',
+ '<polygon points="10,4 16,12 10,20" fill="#9bff5a"/><polygon points="15,4 21,12 15,20" fill="#9bff5a"/>'
 ];
 function puIconHTML(k){ return '<svg viewBox="0 0 24 24" class="ic">'+PU_SVG[k]+'</svg>'; }
-const SKILL_LEGEND=[[0,'升级'],[1,'护盾'],[2,'全屏'],[3,'生命'],[4,'钢基地'],[5,'冻结'],[6,'速射'],[7,'散弹']];
+const SKILL_LEGEND=[[0,'升级'],[1,'护盾'],[2,'全屏'],[3,'生命'],[4,'钢基地'],[5,'冻结'],[6,'速射'],[7,'散弹'],[8,'加速']];
 
 // ---------- HUD ----------
 function drawHUD(){
@@ -1826,8 +1854,17 @@ function showOverlay(win,final,customTitle,customScore){
   overlayEl.classList.remove('hidden');
   resultTitle.className='result '+(win?'win':'lose');
   resultTitle.textContent = customTitle || (win?'STAGE CLEAR':'GAME OVER');
-  resultScore.innerHTML = `SCORE <b>${String(score).padStart(6,'0')}</b> &nbsp; HI <b>${String(highScore).padStart(6,'0')}</b>${customScore?' &nbsp; '+customScore:''}`
-    + (state===STATE.CLEAR||state===STATE.OVER?`<br><span style="font-size:11px;color:#8a7a55">击杀 ${battleStats.kills} · 射击 ${battleStats.shots} · 道具 ${battleStats.pickups} · 阵亡 ${battleStats.deaths}</span>`:'');
+  // 关卡切换界面：结算 + 下一关预览 + 命中率（v15 增强）
+  let extra='';
+  if(state===STATE.CLEAR||state===STATE.OVER){
+    const acc = battleStats.shots>0 ? Math.round(battleStats.kills/battleStats.shots*100) : 0;
+    extra = `<br><span style="font-size:11px;color:#8a7a55">击杀 ${battleStats.kills} · 命中率 ${acc}% · 道具 ${battleStats.pickups} · 阵亡 ${battleStats.deaths}</span>`;
+    if(state===STATE.CLEAR && stageIdx<STAGES.length-1){
+      const th=THEMES[(stageIdx+1)%THEMES.length];
+      extra += `<br><span style="font-size:12px;color:${th.accent}">下一关 STAGE ${(stageIdx+2)} · ${th.name}</span>`;
+    }
+  }
+  resultScore.innerHTML = `SCORE <b>${String(score).padStart(6,'0')}</b> &nbsp; HI <b>${String(highScore).padStart(6,'0')}</b>${customScore?' &nbsp; '+customScore:''}` + extra;
   nextWrap.innerHTML='';
   const again=document.getElementById('againBtn');
   // If final win, again = restart from stage 1
@@ -2009,6 +2046,7 @@ function updateHTMLHUD(){
     add('#c8a050',4,'钢基地',shovelTimer);
     add('#ff9f43',6,'速射',rapidTimer);
     add('#b06bff',7,'散弹',spreadTimer);
+    add('#9bff5a',8,'加速',speedTimer);   // v15
     add('#7fd4ff',1,'护盾',(player&&player.alive&&player.invincible>0)?player.invincible:0);
     if(playerLevel>0) chips.push('<span class="buff" style="--c:#ffd000">'+ico(0)+'Lv.'+(playerLevel+1)+'</span>');
     if(combo>=2) chips.push('<span class="buff" style="--c:#ff5ad0">连击 x'+combo+'</span>');
